@@ -1,0 +1,16 @@
+version: '2.3'
+
+services:
+
+  mongo:
+    image: mongo
+    
+    restart: always
+    
+    network_mode: host
+
+    volumes:
+      - ./mongo-data-vol:/data/db
+    
+
+

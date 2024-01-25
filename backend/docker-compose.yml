@@ -1,0 +1,22 @@
+version: "2.3"
+
+services:
+  inf3995-backend:
+    image: dockerize-inf3995-backend
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: inf3995-backend
+    tty: true
+    volumes:
+      - ./:/app
+      - /app/node_modules
+      - /dev:/dev
+      - /tmp/socket:/tmp/socket
+      - /var/run/docker.sock:/var/run/docker.sock
+      - ../embedded:/embedded
+    devices:
+      - /dev/bus/usb/:/dev/bus/usb/
+    network_mode: host
+
+    

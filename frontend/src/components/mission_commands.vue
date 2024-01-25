@@ -1,0 +1,177 @@
+<template>
+  <v-list dense nav>
+    <div class="switch-center">
+      <v-switch
+        v-model="simulatedMission"
+        dense
+        :disabled="this.$store.state.missionStatus.isMissionStarted"
+        label="Simulation"
+      >
+      </v-switch>
+    </div>
+    <v-list-item
+      v-if="!isP2PGradientRunning"
+      :disabled="
+        !this.$store.state.missionStatus.isMissionStarted ||
+        accessStatus.isMissionSimulated
+      "
+      v-on:click="setP2PGradient(true)"
+    >
+      <v-list-item-icon>
+        <v-icon color="blue">mdi-led-on</v-icon>
+      </v-list-item-icon>
+      <v-list-item-title>Pair à pair</v-list-item-title>
+    </v-list-item>
+
+    <v-list-item
+      v-if="
+        isP2PGradientRunning &&
+        this.$store.state.missionStatus.isMissionStarted &&
+        !accessStatus.isMissionSimulated
+      "
+      v-on:click="setP2PGradient(false)"
+    >
+      <v-list-item-icon>
+        <v-icon color="blue">mdi-led-off</v-icon>
+      </v-list-item-icon>
+      <v-list-item-title>Arrêter pair à pair</v-list-item-title>
+    </v-list-item>
+
+    <v-list-item
+      :disabled="
+        this.$store.state.missionStatus.isMissionStarted ||
+        isLaunchMissionSelected
+      "
+      v-on:click="launchMission()"
+    >
+      <v-list-item-icon>
+        <v-icon color="blue">mdi-airplane-takeoff</v-icon>
+      </v-list-item-icon>
+      <v-list-item-title>Lancer la mission</v-list-item-title>
+    </v-list-item>
+    <v-list-item
+      :disabled="
+        !this.$store.state.missionStatus.isMissionStarted ||
+        isTerminateMissionSelected
+      "
+      v-on:click="returnToBase()"
+    >
+      <v-list-item-icon>
+        <v-icon color="blue">mdi-airplane-landing</v-icon>
+      </v-list-item-icon>
+      <v-list-item-title>Retourner à la base</v-list-item-title>
+    </v-list-item>
+    <v-list-item
+      :disabled="
+        !this.$store.state.missionStatus.isMissionStarted ||
+        isTerminateMissionSelected
+      "
+      v-on:click="terminateMission()"
+    >
+      <v-list-item-icon>
+        <v-icon color="blue">mdi-airplane-off</v-icon>
+      </v-list-item-icon>
+      <v-list-item-title>Terminer la mission</v-list-item-title>
+    </v-list-item>
+  </v-list>
+</template>
+
+<script lang="ts">
+import {Component, Prop, Vue} from 'vue-property-decorator';
+import {ACCESSOR} from '@/store';
+import {ServerCommunication} from '@/communication/server_communication';
+import {AccessStatus} from '@/communication/access_status';
+import {
+  SOCKETIO_LIMITED_ACCESS,
+  UPDATE_P2P_GRADIENT,
+} from '@/communication/server_constants';
+
+@Component({})
+export default class MissionCommands extends Vue {
+  @Prop() private accessStatus!: AccessStatus;
+  @Prop() private maps!: [HTMLCanvasElement];
+  public isLaunchMissionSelected = false;
+  public isTerminateMissionSelected = false;
+  public isReturnToBaseSelected = false;
+  public isP2PGradientRunning = false;
+
+  set simulatedMission(isSimulated: boolean) {
+    if (!ACCESSOR.missionStatus.isMissionStarted) {
+      this.accessStatus.isMissionSimulated = isSimulated;
+      ServerCommunication.setMissionType(isSimulated);
+    }
+  }
+
+  get simulatedMission(): boolean {
+    return this.accessStatus.isMissionSimulated;
+  }
+
+  public launchMission(): void {
+    if (ACCESSOR.missionStatus.isMissionStarted) return;
+    this.isLaunchMissionSelected = true;
+    const COMMAND_SENT = ServerCommunication.launchMission(
+      this.accessStatus.isMissionSimulated,
+      () => {
+        this.isLaunchMissionSelected = false;
+      }
+    );
+    if (!COMMAND_SENT) {
+      this.isLaunchMissionSelected = false;
+    }
+  }
+
+  public returnToBase(): void {
+    if (!ACCESSOR.missionStatus.isMissionStarted) return;
+    this.isReturnToBaseSelected = true;
+
+    const COMMAND_SENT = ServerCommunication.returnToBase(() => {
+      this.isReturnToBaseSelected = false;
+    });
+
+    if (!COMMAND_SENT) {
+      this.isReturnToBaseSelected = false;
+    }
+    this.$emit('terminateMission', true);
+  }
+  public setP2PGradient(value: boolean): void {
+    if (!ACCESSOR.missionStatus.isMissionStarted) return;
+
+    ServerCommunication.setP2PGradient(value);
+  }
+
+  public terminateMission(): void {
+    if (!ACCESSOR.missionStatus.isMissionStarted) return;
+    this.isTerminateMissionSelected = true;
+    this.$emit('terminateMission', true);
+
+    const IMAGE =
+      this.maps[0] !== undefined
+        ? this.maps[0].toDataURL()
+        : 'data:image/png;base64';
+    const COMMAND_SENT = ServerCommunication.terminateMission(IMAGE, () => {
+      this.isTerminateMissionSelected = false;
+    });
+
+    if (!COMMAND_SENT) {
+      this.isTerminateMissionSelected = false;
+    }
+  }
+  private beforeCreate() {
+    SOCKETIO_LIMITED_ACCESS.on(UPDATE_P2P_GRADIENT, (newValue: boolean) => {
+      this.isP2PGradientRunning = newValue;
+    });
+
+    SOCKETIO_LIMITED_ACCESS.open();
+  }
+  private destroyed() {
+    SOCKETIO_LIMITED_ACCESS.removeListener(UPDATE_P2P_GRADIENT);
+  }
+}
+</script>
+
+<style scoped>
+.switch-center {
+  display: flex;
+  justify-content: center;
+}
+</style>

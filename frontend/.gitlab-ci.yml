@@ -1,0 +1,55 @@
+image: node:16.13.2-alpine3.14
+
+variables:
+  WORKING_DIRECTORY: "frontend"
+
+workflow:
+  rules:
+    - changes:
+      - $WORKING_DIRECTORY/**/*
+
+stages:
+  - lint_test
+  - build
+
+.cache_template: &cache_configuration  # Hidden yaml configuration that defines an anchor named 'cache_configuration'
+  cache: 
+    key: $CI_COMMIT_REF_SLUG-$WORKING_DIRECTORY
+    paths:
+      - $WORKING_DIRECTORY/node_modules/
+    policy: pull
+
+prepare:
+  stage: .pre
+  script:
+    - cd $WORKING_DIRECTORY
+    - npm --version
+    - npm ci
+  cache: 
+    key: $CI_COMMIT_REF_SLUG-$WORKING_DIRECTORY
+    paths:
+      - $WORKING_DIRECTORY/node_modules/
+
+lint:
+  stage: lint_test
+  <<: *cache_configuration            # Merge the contents of the 'cache_configuration' alias
+  script:
+    - cd $WORKING_DIRECTORY
+    - npm ci
+    - npm run lint
+
+test:
+  stage: lint_test
+  <<: *cache_configuration            # Merge the contents of the 'cache_configuration' alias
+  script:
+    - cd $WORKING_DIRECTORY
+    - npm ci
+    - npm run test
+
+build:
+  stage: build
+  <<: *cache_configuration            # Merge the contents of the 'cache_configuration' alias
+  script:
+    - cd $WORKING_DIRECTORY
+    - npm ci
+    - npm run build
